@@ -11,25 +11,73 @@ const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])[a-zA-Z\d\W_]{8,}$/;
 
 
+function validateUserData(userData) {
+  const { name, age, gender, dob, height, weight, bmi, goal, injuries } = userData;
+  const errors = [];
+  
+  if (!name || typeof name !== 'string' || name.length < 2) errors.push('Invalid name');
+  if (!age || isNaN(age) || age <= 0) errors.push('Invalid age');
+  if (!gender || !['male', 'female', 'other'].includes(gender.toLowerCase())) errors.push('Invalid gender');
+  if (!dob || isNaN(Date.parse(dob))) errors.push('Invalid date of birth');
+  if (!height || isNaN(height) || height <= 0) errors.push('Invalid height');
+  if (!weight || isNaN(weight) || weight <= 0) errors.push('Invalid weight');
+  if (!bmi || isNaN(bmi) || bmi <= 0) errors.push('Invalid BMI');
+  if (!goal || typeof goal !== 'string') errors.push('Invalid goal');
+  
+  return errors;
+}
+
+app.post("/home", async (req, res) => {
+  try {        
+    const { name, age, gender, dob, height, weight, bmi, goal, injuries } = req.body;
+    
+  
+    const errors = validateUserData(req.body);
+    if (errors.length > 0) {
+      return res.status(400).json({ errors });
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        age: parseInt(age),  
+        gender,
+        dob: new Date(dob),  
+        height: parseFloat(height), 
+        weight: parseFloat(weight), 
+        bmi: parseFloat(bmi), 
+        goal,
+        injuries
+      }
+    });
+
+    return res.status(201).json(user); // Success
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 app.get('/users', async (req, res) => {
   const users = await prisma.user.findMany();
   res.json(users);
 });
 
 app.post('/signup', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password} = req.body;
 
- 
+
   if (!email || !emailRegex.test(email)) {
     return res.status(400).json({ error: 'Invalid email format.' });
   }
 
-  
   if (!password || !passwordRegex.test(password)) {
-     res.status(400).json({
+    return res.status(400).json({
       error: 'Password must be at least 8 characters long, contain at least one lowercase letter, one uppercase letter, and one number.'
     });
   }
+
+ 
 
   try {
     const existingUser = await prisma.user.findUnique({
@@ -40,13 +88,13 @@ app.post('/signup', async (req, res) => {
       return res.status(400).json({ error: 'Email already exists.' });
     }
 
-   
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await prisma.user.create({
       data: {
         email: email,
-        password: hashedPassword
+        password: hashedPassword,
+       
       }
     });
 
@@ -60,13 +108,12 @@ app.post('/signup', async (req, res) => {
 app.post('/signin', async (req, res) => {
   const { email, password } = req.body;
 
- 
   if (!email || !emailRegex.test(email)) {
     return res.status(400).json({ error: 'Invalid email format.' });
   }
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required.' });
+  if (!password) {
+    return res.status(400).json({ error: 'Password is required.' });
   }
 
   try {
